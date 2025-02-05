@@ -1,1 +1,2 @@
-
+env_setup/.env.docker
+env_setup/local/.env*

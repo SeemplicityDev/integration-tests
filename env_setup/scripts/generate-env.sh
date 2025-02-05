@@ -1,0 +1,994 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if ! command -v jq &> /dev/null
+then
+    echo "the command `jq` could not be found. Please install it"
+    exit 1
+fi
+
+SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+REPO_DIR="$( realpath -- "${SCRIPT_DIR}/../.." )"
+
+while [[ $# -gt 0 ]]; do
+  key="$1"
+  shift
+  case $key in
+    -dp|--docker-profile)
+      DOCKER_PROFILE="$1"
+      shift
+      ;;
+    -cp|--cognito-profile)
+      COGNITO_PROFILE="$1"
+      shift
+      ;;
+    -r|--region)
+      AWS_REGION="$1"
+      shift
+      ;;
+    -le|--local-data-api-server)
+      DATA_API_SERVER_IMAGE="$1"
+      PULL_ENGINE=false
+      shift
+      ;;
+    -lc|--local-collector)
+      COLLECTOR_IMAGE="$1"
+      PULL_COLLECTOR=false
+      shift
+      ;;
+    -lc|--local-correlator)
+      CORRELATOR_IMAGE="$1"
+      PULL_CORRELATOR=false
+      shift
+      ;;
+    -lt|--local-ticketmaster)
+      TICKETMASTER_IMAGE="$1"
+      PULL_TICKETMASTER=false
+      shift
+      ;;
+    -ltw|--local-ticketmaster-worker)
+      TICKETMASTER_WORKER_IMAGE="$1"
+      PULL_TICKETMASTER_WORKER=false
+      shift
+      ;;
+    -lds|--local-dashboards-service)
+      DASHBOARDS_SERVICE_IMAGE="$1"
+      PULL_DASHBOARDS_SERVICE=false
+      shift
+      ;;
+    -lrs|--local-remediation-service)
+      REMEDIATION_SERVICE_IMAGE="$1"
+      PULL_REMEDIATION_SERVICE=false
+      shift
+      ;;
+    -lws|--local-websocket)
+      WEBSOCKET_SERVER_IMAGE="$1"
+      PULL_WEBSOCKET=false
+      shift
+      ;;
+    -lw|--local-worker)
+      WORKER_IMAGE="$1"
+      PULL_WORKER=false
+      shift
+      ;;
+    --no-compose-data-api-server)
+      COMPOSE_ENGINE=false
+      # not setting PULL_ENGINE=false as we need it for bootstrapping
+      ;;
+    --no-compose-collector)
+      COMPOSE_COLLECTOR=false
+      PULL_COLLECTOR=false
+      ;;
+    --no-compose-correlator)
+      COMPOSE_CORRELATOR=false
+      PULL_CORRELATOR=false
+      ;;
+    --no-compose-ticketmaster)
+      COMPOSE_TICKETMASTER=false
+      PULL_TICKETMASTER=false
+      ;;
+    --no-compose-ticketmaster-worker)
+      COMPOSE_TICKETMASTER_WORKER=false
+      PULL_TICKETMASTER_WORKER=false
+      ;;
+    --no-compose-dashboards-service)
+      COMPOSE_DASHBOARDS_SERVICE=false
+      PULL_DASHBOARDS_SERVICE=false
+      ;;
+    --no-compose-remediation-service)
+      COMPOSE_REMEDIATION_SERVICE=false
+      PULL_REMEDIATION_SERVICE=false
+      ;;
+    --no-compose-websocket)
+      COMPOSE_WEBSOCKET=false
+      PULL_WEBSOCKET=false
+      ;;
+    --create-jira-project)
+      CREATE_JIRA_PROJECT=true
+      ;;
+    --jira-project-name)
+      JIRA_PROJECT_NAME="$1"
+      shift
+      ;;
+    --serve-build)
+      SERVE_BUILD=true
+      ;;
+    -d|--debug)
+      set -x
+      ;;
+    -h|--help)
+      echo "Usage: docker/scripts/generate-env.sh [OPTIONS]
+
+Options:
+  -dp, --docker-profile TEXT        AWS profile to use for Docker images    [default: \$AWS_PROFILE env]
+  -cp, --cognito-profile TEXT       AWS profile to use for AWS variables    [default: \$AWS_PROFILE env]
+  -r, --region TEXT                 Region to use for AWS env variables     [default: \$AWS_REGION env]
+  -le, --local-data-api-server TEXT Local data-api-server image name/id     [default: docker profile ECR image]
+  -lc, --local-collector       TEXT Local collector image name/id           [default: docker profile ECR image]
+  -lt, --local-ticketmaster TEXT    Local ticketmaster image name/id        [default: docker profile ECR image]
+  -ltw, --local-ticketmaster-worker TEXT    Local ticketmaster worker image name/id        [default: docker profile ECR image]
+  -lws, --local-websocket TEXT      Local websocket image name/id           [default: docker profile ECR image]
+  -lw, --local-worker TEXT          Local worker image name/id              [default: docker profile ECR image]
+  --create-jira-project             Create new jira project(must be on dev) [default: false]
+  --jira-project-name TEXT          Name of an existing project             [default: CypressJiraProject]
+  --no-compose-data-api-server      Don't docker compose data-api-server    [default: false]
+  --no-compose-collector            Don't docker compose collector          [default: false]
+  --no-compose-ticketmaster         Don't docker compose ticketmaster       [default: false]
+  --no-compose-ticketmaster-worker         Don't docker compose ticketmaster-worker       [default: false]
+  --no-compose-websocket            Don't docker compose websocket          [default: false]
+  --serve-build                     Serve the application complied build    [default: false]
+  -d, --debug                       Whether to trace commands or not
+  -h, --help                        Show this message and exit
+      "
+      exit 1
+      ;;
+    *)
+      echo "'$key' isn't supported by this script, please try again or try --help."
+      exit 2
+      ;;
+  esac
+done
+if [ -z ${DOCKER_PROFILE+x} ]; then
+  DOCKER_PROFILE=production
+fi
+if [ -z ${COGNITO_PROFILE+x} ]; then
+  COGNITO_PROFILE=development
+fi
+if [ -z ${AWS_REGION+x} ]; then
+  AWS_REGION=${AWS_REGION:-"eu-central-1"}
+fi
+
+echo "Setting Env Variables"
+DOCKER_AWS_ACCOUNT_ID=$(
+  aws sts get-caller-identity --profile "$DOCKER_PROFILE" --output=text --query='Account'
+)
+ECR_URL="${DOCKER_AWS_ACCOUNT_ID}.dkr.ecr.eu-central-1.amazonaws.com"
+if [ -z "${DATA_API_SERVER_IMAGE+x}" ]; then
+  DATA_API_SERVER_IMAGE="${ECR_URL}/data-api-server:latest"
+fi
+if [ -z "${COLLECTOR_IMAGE+x}" ]; then
+  COLLECTOR_IMAGE="${ECR_URL}/collector:latest"
+fi
+if [ -z "${CORRELATOR_IMAGE+x}" ]; then
+  CORRELATOR_IMAGE="${ECR_URL}/correlator-service:latest"
+fi
+if [ -z "${TICKETMASTER_IMAGE+x}" ]; then
+  TICKETMASTER_IMAGE="${ECR_URL}/ticketmaster:latest"
+fi
+if [ -z "${TICKETMASTER_WORKER_IMAGE+x}" ]; then
+  TICKETMASTER_WORKER_IMAGE="${ECR_URL}/ticketmaster-worker:latest"
+fi
+if [ -z "${WORKER_IMAGE+x}" ]; then
+  WORKER_IMAGE="${ECR_URL}/worker:latest"
+fi
+if [ -z "${WEBSOCKET_SERVER_IMAGE+x}" ]; then
+  WEBSOCKET_SERVER_IMAGE="${ECR_URL}/websocket-server:latest"
+fi
+if [ -z "${DASHBOARDS_SERVICE_IMAGE+x}" ]; then
+  DASHBOARDS_SERVICE_IMAGE="${ECR_URL}/dashboards-service:latest"
+fi
+if [ -z "${REMEDIATION_SERVICE_IMAGE+x}" ]; then
+  REMEDIATION_SERVICE_IMAGE="${ECR_URL}/remediation-service:latest"
+fi
+LOCAL_ENGINE_POSTGRES_HOST='localhost'
+LOCAL_ENGINE_DYNAMODB_ENDPOINT='http://localhost:8900'
+LOCAL_ENGINE_CLICKHOUSE_HOST='localhost'
+LOCAL_ENGINE_TICKETMASTER_HOST='localhost'
+LOCAL_ENGINE_DASHBOARDS_SERVICE_URL="http://localhost:4001/dashboards"
+LOCAL_ENGINE_REMEDIATION_SERVICE_URL="http://localhost:4002"
+LOCAL_ENGINE_RABBITMQ_HOST='localhost'
+LOCAL_ENGINE_REDIS_HOST='localhost'
+LOCAL_WORKER_ENGINE_HOST='host.docker.internal'
+
+JS_WORKER_IMAGE="${ECR_URL}/js-worker:latest"
+ACTIONS_WORKER_IMAGE="${ECR_URL}/actions-service:latest"
+
+POSTGRES_USER='postgres'
+POSTGRES_PASSWORD='Password1!'
+
+CLICKHOUSE_USER='default'
+CLICKHOUSE_PASSWORD='Password1!'
+CLICKHOUSE_PORT=8123
+CLICKHOUSE_URL="clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@clickhouse:${CLICKHOUSE_PORT}"
+
+LRU_CACHE_INTERFACE='REDIS'
+LFU_CACHE_INTERFACE='REDIS'
+TTL_CACHE_INTERFACE='REDIS'
+LOCK_FACTORY_LOCAL='true'
+
+EXTERNAL_GRAPHQL_ENDPOINT='/api/graphql'
+CNC_GRAPHQL_ENDPOINT='/api/v0'
+
+DATA_API_SERVER_PORT=5050
+TICKETMASTER_PORT=3000
+DASHBOARDS_SERVICE_PORT=4001
+REMEDIATION_SERVICE_PORT=4002
+WEBSOCKET_SERVER_PORT=80
+POSTGRES_PORT=5432
+APPLICATION_PORT=4000
+
+WEB_CONCURRENCY=1
+WORKERS_PER_CORE=1
+INTERNAL_ENDPOINT='/api/internalgraphql'
+
+POSTGRES_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}"
+TICKETMASTER_BASE_URL='http://localhost:3000'
+SYNC_TASKS_TIMEOUT=600
+
+ATTACHMENT_BUCKET_NAME='bucket'
+CUSTOMER_REPORTS_BUCKET_NAME='customer_reports'
+ATTACHMENT_BUCKET_LOCAL='true'
+
+COGNITO_AWS_ACCOUNT_ID=$(
+  aws sts get-caller-identity --profile "$COGNITO_PROFILE" --output=text --query='Account'
+)
+
+if [[ "${CI:-false}" == "true" ]] ; then
+  AWS_ACCESS_KEY_ID=$(aws configure get "$COGNITO_PROFILE".aws_access_key_id)
+  AWS_SECRET_ACCESS_KEY=$(aws configure get "$COGNITO_PROFILE".aws_secret_access_key)
+  AWS_SESSION_TOKEN=$(aws configure get "$COGNITO_PROFILE".aws_session_token)
+else
+  aws_credentials=$(aws configure export-credentials)
+  AWS_ACCESS_KEY_ID=$(echo $aws_credentials | jq -r '.AccessKeyId')
+  AWS_SECRET_ACCESS_KEY=$(echo $aws_credentials | jq -r '.SecretAccessKey')
+  AWS_SESSION_TOKEN=$(echo $aws_credentials | jq -r '.SessionToken')
+fi
+
+INTERNAL_CLIENT_SECRETS=$(
+  aws secretsmanager get-secret-value --profile "$COGNITO_PROFILE" \
+    --region "$AWS_REGION" \
+    --secret-id=internal-client-secrets \
+    --query='SecretString' --output=text
+)
+INTERNAL_CLIENT_ID=$(
+  echo -n $INTERNAL_CLIENT_SECRETS | jq -r '.client_id'
+)
+INTERNAL_CLIENT_SECRET=$(
+echo -n $INTERNAL_CLIENT_SECRETS | jq -r '.client_secret'
+)
+
+USER_POOL_ID=$(
+  aws cognito-idp list-user-pools \
+    --profile="$COGNITO_PROFILE" \
+    --region="$AWS_REGION" \
+    --max-results 10 \
+    --query='UserPools[?Name==`Seemplicity User Pool`].Id' \
+    --output text
+)
+
+TOKEN_POOL_ID=$(
+  aws cognito-idp list-user-pools \
+    --profile="$COGNITO_PROFILE" \
+    --region="$AWS_REGION" \
+    --max-results 10 \
+    --query='UserPools[?Name==`Seemplicity Token Pool`].Id' \
+    --output text
+)
+case "$COGNITO_AWS_ACCOUNT_ID" in
+  104338399232)
+    COGNITO='prod'
+    EXTERNAL_CLIENT_ID='57jootlsko4bdfqti22g7ousu4'
+    VITE_COGNITO_IDENTITY_POOL_ID="${AWS_REGION}:3781586a-d4ee-4857-8fde-5a65fde9b69d"
+    TOKEN_POOL_BASIC_AUTH_CLIENT_ID='4fu3rgs24lgvd17efenerqt6ba'
+  ;;
+  403017019398)
+    COGNITO='staging'
+    EXTERNAL_CLIENT_ID='59bes229se2u91g4c7tv62prm2'
+    VITE_COGNITO_IDENTITY_POOL_ID="${AWS_REGION}:8908f03c-5184-49b9-8406-26f810fb01e1"
+    TOKEN_POOL_BASIC_AUTH_CLIENT_ID='7qhf8ccgbn4b70c1lbgdkaa6is'
+  ;;
+  620172209105)
+    COGNITO='dev'
+    EXTERNAL_CLIENT_ID='1o90ittmhnrp0qq1ej2r5ef107'
+    VITE_COGNITO_IDENTITY_POOL_ID="${AWS_REGION}:3e538955-f76e-4b1d-a258-f89923eeb3b7"
+    TOKEN_POOL_BASIC_AUTH_CLIENT_ID='6bfsh250fi32iboodviggda712'
+  ;;
+esac
+USER_POOL_JWK=$(
+  curl -s "https://cognito-idp.${AWS_REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/jwks.json" |
+  base64
+)
+TOKEN_POOL_JWK=$(
+  curl -s "https://cognito-idp.${AWS_REGION}.amazonaws.com/${TOKEN_POOL_ID}/.well-known/jwks.json" |
+  base64
+)
+COGNITO_ENDPOINT="seemplicity-${COGNITO}.auth.${AWS_REGION}.amazoncognito.com"
+
+if [ -z ${CREATE_JIRA_PROJECT+x} ]; then
+  CREATE_JIRA_PROJECT=false
+  JIRA_PROJECT_KEY=''
+  if [ -z ${JIRA_PROJECT_NAME+x} ]; then
+    JIRA_PROJECT_NAME='CypressJiraProject'
+  fi
+  JIRA_USERNAME=''
+  JIRA_API_TOKEN=''
+  JIRA_CLOUD_ID=''
+else
+  STAMP=$RANDOM
+  JIRA_PROJECT_KEY="CY${STAMP}"
+  JIRA_PROJECT_NAME="CY${STAMP}"
+  JIRA_CREDENTIALS=$(
+    aws secretsmanager get-secret-value \
+      --profile "$COGNITO_PROFILE" \
+      --region "$AWS_REGION" \
+      --secret-id test-jira-credentials \
+      --query='SecretString' --output=text
+  )
+  JIRA_USERNAME=$(
+    echo -n "$JIRA_CREDENTIALS" | jq -r '.email'
+  )
+  JIRA_API_TOKEN=$(
+    echo -n "$JIRA_CREDENTIALS" | jq -r '.api_token'
+  )
+  JIRA_CLOUD_ID=$(
+    echo -n "$JIRA_CREDENTIALS" | jq -r .'cloud_id'
+  )
+fi
+
+if [ -z ${PULL_ENGINE+x} ]; then
+  PULL_ENGINE=true
+fi
+if [ -z ${PULL_CORRELATOR+x} ]; then
+  PULL_CORRELATOR=true
+fi
+if [ -z ${PULL_COLLECTOR+x} ]; then
+  PULL_COLLECTOR=true
+fi
+if [ -z ${PULL_TICKETMASTER+x} ]; then
+  PULL_TICKETMASTER=true
+fi
+if [ -z ${PULL_TICKETMASTER_WORKER+x} ]; then
+  PULL_TICKETMASTER_WORKER=true
+fi
+if [ -z ${PULL_DASHBOARDS_SERVICE+x} ]; then
+  PULL_DASHBOARDS_SERVICE=true
+fi
+if [ -z ${PULL_REMEDIATION_SERVICE+x} ]; then
+  PULL_REMEDIATION_SERVICE=true
+fi
+if [ -z ${PULL_WORKER+x} ]; then
+  PULL_WORKER=true
+fi
+if [ -z ${PULL_WEBSOCKET+x} ]; then
+  PULL_WEBSOCKET=true
+fi
+
+if [ -z ${SERVE_BUILD+x} ]; then
+  SERVE_BUILD=false
+fi
+
+if [ -z ${COMPOSE_ENGINE+x} ]; then
+  COMPOSE_ENGINE=true
+fi
+
+ENGINE_POSTGRES_HOST='postgres'
+ENGINE_DYNAMODB_ENDPOINT='http://dynamodb:8000'
+ENGINE_CLICKHOUSE_HOST='clickhouse'
+ENGINE_TICKETMASTER_HOST='ticketmaster'
+ENGINE_DASHBOARDS_SERVICE_URL="http://dashboards-service:4001/dashboards"
+ENGINE_REMEDIATION_SERVICE_URL="http://remediation-service:4002"
+ENGINE_RABBITMQ_HOST='rabbitmq'
+ENGINE_REDIS_HOST='redis'
+WORKER_ENGINE_HOST='data-api-server'
+
+if [ -z ${COMPOSE_COLLECTOR+x} ]; then
+  COMPOSE_COLLECTOR=true
+fi
+if [ -z ${COMPOSE_CORRELATOR+x} ]; then
+  COMPOSE_CORRELATOR=true
+fi
+if [ -z ${COMPOSE_TICKETMASTER+x} ]; then
+  COMPOSE_TICKETMASTER=true
+  TICKETMASTER_POSTGRES_HOST='postgres'
+  TICKETMASTER_CLICKHOUSE_HOST='clickhouse'
+  TICKETMASTER_RABBITMQ_HOST='rabbitmq'
+  TICKETMASTER_REDIS_HOST='redis'
+  TICKETMASTER_DYNAMODB_ENDPOINT='http://dynamodb:8000'
+else
+  TICKETMASTER_POSTGRES_HOST='localhost'
+  TICKETMASTER_CLICKHOUSE_HOST='localhost'
+  TICKETMASTER_RABBITMQ_HOST='localhost'
+  TICKETMASTER_REDIS_HOST='localhost'
+  TICKETMASTER_DYNAMODB_ENDPOINT='http://localhost:8900'
+  if [ $COMPOSE_ENGINE = true ]; then
+    ENGINE_TICKETMASTER_HOST='host.docker.internal'
+  fi
+fi
+if [ -z ${COMPOSE_TICKETMASTER_WORKER+x} ]; then
+  COMPOSE_TICKETMASTER_WORKER=true
+  TICKETMASTER_WORKER_POSTGRES_HOST='postgres'
+  TICKETMASTER_WORKER_RABBITMQ_HOST='rabbitmq'
+  TICKETMASTER_WORKER_REDIS_HOST='redis'
+  TICKETMASTER_WORKER_DYNAMODB_ENDPOINT='http://dynamodb:8000'
+else
+  TICKETMASTER_WORKER_POSTGRES_HOST='localhost'
+  TICKETMASTER_WORKER_RABBITMQ_HOST='localhost'
+  TICKETMASTER_WORKER_REDIS_HOST='localhost'
+  TICKETMASTER_WORKER_DYNAMODB_ENDPOINT='http://localhost:8900'
+  if [ $COMPOSE_ENGINE = true ]; then
+    ENGINE_TICKETMASTER_HOST='host.docker.internal'
+  fi
+fi
+if [ -z ${COMPOSE_DASHBOARDS_SERVICE+x} ]; then
+  COMPOSE_DASHBOARDS_SERVICE=true
+  DASHBOARDS_SERVICE_POSTGRES_HOST='postgres'
+  DASHBOARDS_SERVICE_REDIS_HOST='redis'
+  DASHBOARDS_SERVICE_DYNAMODB_ENDPOINT='http://dynamodb:8000'
+else
+  DASHBOARDS_SERVICE_POSTGRES_HOST='localhost'
+  DASHBOARDS_SERVICE_REDIS_HOST='localhost'
+  DASHBOARDS_SERVICE_DYNAMODB_ENDPOINT='http://localhost:8900'
+  if [ $COMPOSE_ENGINE = true ]; then
+    ENGINE_DASHBOARDS_SERVICE_URL="http://host.docker.internal:4001/dashboards"
+  fi
+fi
+if [ -z ${COMPOSE_REMEDIATION_SERVICE+x} ]; then
+  COMPOSE_REMEDIATION_SERVICE=true
+  REMEDIATION_SERVICE_POSTGRES_HOST='postgres'
+  REMEDIATION_SERVICE_REDIS_HOST='redis'
+  REMEDIATION_SERVICE_DYNAMODB_ENDPOINT='http://dynamodb:8000'
+else
+  REMEDIATION_SERVICE_POSTGRES_HOST='localhost'
+  REMEDIATION_SERVICE_REDIS_HOST='localhost'
+  REMEDIATION_SERVICE_DYNAMODB_ENDPOINT='http://localhost:8900'
+  if [ $COMPOSE_ENGINE = true ]; then
+    ENGINE_REMEDIATION_SERVICE_URL="http://host.docker.internal:4002"
+  fi
+fi
+if [ -z ${COMPOSE_WEBSOCKET+x} ]; then
+  COMPOSE_WEBSOCKET=true
+  WEBSOCKET_REDIS_HOST='redis'
+else
+  WEBSOCKET_REDIS_HOST='localhost'
+fi
+
+mkdir -p "${REPO_DIR}/env_setup/local"
+
+echo "Setting Cypress env file"
+cat > "${REPO_DIR}/env_setup/.env.cypress" << EOF
+JIRA_PROJECT_NAME='$JIRA_PROJECT_NAME'
+VITE_COGNITO_IDENTITY_POOL_ID='$VITE_COGNITO_IDENTITY_POOL_ID'
+VITE_COGNITO_REGION='$AWS_REGION'
+VITE_COGNITO_USER_POOL_ID='$USER_POOL_ID'
+VITE_COGNITO_WEB_CLIENT_ID='$EXTERNAL_CLIENT_ID'
+EOF
+
+echo "Setting script env file"
+cat > "${REPO_DIR}/env_setup/.env.scripts" << EOF
+AWS_PROFILE='$DOCKER_PROFILE'
+PULL_ENGINE=$PULL_ENGINE
+PULL_COLLECTOR=$PULL_COLLECTOR
+PULL_CORRELATOR=$PULL_CORRELATOR
+PULL_TICKETMASTER=$PULL_TICKETMASTER
+PULL_TICKETMASTER_WORKER=$PULL_TICKETMASTER_WORKER
+PULL_DASHBOARDS_SERVICE=$PULL_DASHBOARDS_SERVICE
+PULL_REMEDIATION_SERVICE=$PULL_REMEDIATION_SERVICE
+PULL_WEBSOCKET=$PULL_WEBSOCKET
+PULL_WORKER=$PULL_WORKER
+SERVE_BUILD=$SERVE_BUILD
+
+COMPOSE_ENGINE=$COMPOSE_ENGINE
+COMPOSE_COLLECTOR=$COMPOSE_COLLECTOR
+COMPOSE_CORRELATOR=$COMPOSE_CORRELATOR
+COMPOSE_TICKETMASTER=$COMPOSE_TICKETMASTER
+COMPOSE_TICKETMASTER_WORKER=$COMPOSE_TICKETMASTER_WORKER
+COMPOSE_WEBSOCKET=$COMPOSE_WEBSOCKET
+COMPOSE_DASHBOARDS_SERVICE=$COMPOSE_DASHBOARDS_SERVICE
+COMPOSE_REMEDIATION_SERVICE=$COMPOSE_REMEDIATION_SERVICE
+
+APPLICATION_PORT='$APPLICATION_PORT'
+DATA_API_SERVER_PORT='$DATA_API_SERVER_PORT'
+POSTGRES_PORT='$POSTGRES_PORT'
+
+COGNITO_ENDPOINT='$COGNITO_ENDPOINT'
+INTERNAL_CLIENT_SECRET='$INTERNAL_CLIENT_SECRET'
+INTERNAL_CLIENT_ID='$INTERNAL_CLIENT_ID'
+
+CREATE_JIRA_PROJECT=$CREATE_JIRA_PROJECT
+JIRA_PROJECT_KEY='$JIRA_PROJECT_KEY'
+JIRA_PROJECT_NAME='$JIRA_PROJECT_NAME'
+JIRA_CLOUD_ID='$JIRA_CLOUD_ID'
+JIRA_USERNAME='$JIRA_USERNAME'
+JIRA_API_TOKEN='$JIRA_API_TOKEN'
+
+# Bootstrapping & Seeding
+DEFAULT_DATABASE_IDENTIFIER=default
+LOCAL_AWS_ENDPOINT_URL_DYNAMODB='http://localhost:8900'
+POSTGRES_USER='$POSTGRES_USER'
+POSTGRES_PASSWORD='$POSTGRES_PASSWORD'
+POSTGRES_PORT='$POSTGRES_PORT'
+EOF
+
+echo "Setting postgres env file"
+cat > "${REPO_DIR}/env_setup/.env.postgres" << EOF
+POSTGRES_USER='$POSTGRES_USER'
+POSTGRES_PASSWORD='$POSTGRES_PASSWORD'
+EOF
+
+echo "Setting clickhouse env file"
+cat > "${REPO_DIR}/env_setup/.env.clickhouse" << EOF
+CLICKHOUSE_USER='$CLICKHOUSE_USER'
+CLICKHOUSE_PASSWORD='$CLICKHOUSE_PASSWORD'
+EOF
+
+echo "Setting application env file"
+cat > "${REPO_DIR}/env_setup/.env.application" << EOF
+VITE_GRAPHQL_SERVER='http://localhost:${DATA_API_SERVER_PORT}${EXTERNAL_GRAPHQL_ENDPOINT}'
+VITE_GRAPHQL_SERVER_CNC='http://localhost:${DATA_API_SERVER_PORT}${CNC_GRAPHQL_ENDPOINT}'
+VITE_WEBSOCKET_SERVER='ws://localhost/websocket/listen'
+VITE_COGNITO_IDENTITY_POOL_ID='$VITE_COGNITO_IDENTITY_POOL_ID'
+VITE_COGNITO_REGION='$AWS_REGION'
+VITE_COGNITO_USER_POOL_ID='$USER_POOL_ID'
+VITE_COGNITO_WEB_CLIENT_ID='$EXTERNAL_CLIENT_ID'
+FAST_REFRESH='true'
+VITE_AUTH_DOMAIN='$COGNITO_ENDPOINT'
+VITE_LAUNCH_DARKLY_CLIENT_ID='6123cc8e408d8c2639ff690e'
+PORT='$APPLICATION_PORT'
+VITE_DOMAIN='http://localhost:$APPLICATION_PORT'
+EOF
+
+function set_data_api_server_env_file(){
+  ENV_FILE_NAME=$1
+  DATA_API_SERVER_POSTGRES_HOST=$2
+  DATA_API_SERVER_CLICKHOUSE_HOST=$3
+  DATA_API_SERVER_TICKETMASTER_HOST=$4
+  DATA_API_SERVER_RABBITMQ_HOST=$5
+  DATA_API_SERVER_REDIS_HOST=$6
+  DATA_API_SERVER_DYNAMODB_ENDPOINT=$7
+  DATA_API_SERVER_DASHBOARDS_SERVICE_URL=$8
+  DATA_API_SERVER_REMEDIATION_SERVICE_URL=$9
+
+  cat > "${REPO_DIR}/env_setup/${ENV_FILE_NAME}" << EOF
+ENABLE_GRAPHIQL='true'
+DISABLE_SECURITY='true'
+USER_MANAGEMENT_LOCAL='true'
+LRU_CACHE_INTERFACE='$LRU_CACHE_INTERFACE'
+LFU_CACHE_INTERFACE='$LFU_CACHE_INTERFACE'
+TTL_CACHE_INTERFACE='$TTL_CACHE_INTERFACE'
+LOCK_FACTORY_LOCAL='$LOCK_FACTORY_LOCAL'
+EXTERNAL_ENDPOINT='$EXTERNAL_GRAPHQL_ENDPOINT'
+INTERNAL_ENDPOINT='$INTERNAL_ENDPOINT'
+SECRETS_REGION='$AWS_REGION'
+AWS_REGION='$AWS_REGION'
+USER_POOL_EXTERNAL_CLIENT_ID='$EXTERNAL_CLIENT_ID'
+USER_POOL_INTERNAL_CLIENT_ID='$INTERNAL_CLIENT_ID'
+USER_POOL_JWK='$USER_POOL_JWK'
+TOKEN_POOL_ID='$TOKEN_POOL_ID'
+TOKEN_POOL_BASIC_AUTH_CLIENT_ID='$TOKEN_POOL_BASIC_AUTH_CLIENT_ID'
+TOKEN_POOL_JWK='$TOKEN_POOL_JWK'
+RAP_ENDPOINT='/api/rap'
+RAP_API_KEY_SECRET_NAME='rap_api_key'
+CUSTOMER_ENDPOINT='/api/v1'
+PARTNER_CUSTOMER_ENDPOINT='/api/partner'
+PARTNER_ADMIN_ENDPOINT='/api/partner/admin'
+CNC_IMPERSONATE_ENDPOINT='$CNC_GRAPHQL_ENDPOINT'
+READONLY_USER_PASSWORD_SECRET_NAME='readonly-user-password-${COGNITO}-euc1-1'
+INTERNAL_CLIENT_SECRETS='$INTERNAL_CLIENT_SECRETS'
+INTERNAL_COGNITO_ENDPOINT='https://${COGNITO_ENDPOINT}/oauth2/token'
+BROKER_USERNAME='guest'
+BROKER_PASSWORD='guest'
+BROKER_URL='amqp://${DATA_API_SERVER_RABBITMQ_HOST}:5672'
+RESULT_BACKEND_PORT='6379'
+RESULT_BACKEND_ENDPOINT='$DATA_API_SERVER_REDIS_HOST'
+COGNITO_POOL_ID='$USER_POOL_ID'
+AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
+AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN'
+LRU_CACHE_INTERFACE='$LRU_CACHE_INTERFACE'
+TTL_EXP_SECONDS='60'
+WEB_CONCURRENCY='$WEB_CONCURRENCY'
+WORKERS_PER_CORE='$WORKERS_PER_CORE'
+PORT='$DATA_API_SERVER_PORT'
+SYNC_TASKS_TIMEOUT='$SYNC_TASKS_TIMEOUT'
+AWS_ENDPOINT_URL_DYNAMODB='$DATA_API_SERVER_DYNAMODB_ENDPOINT'
+AWS_REGION=eu-central-1
+AWS_DEFAULT_REGION=eu-central-1
+DEFAULT_DATABASE_IDENTIFIER=default
+
+TICKETMASTER_URL='http://${DATA_API_SERVER_TICKETMASTER_HOST}:${TICKETMASTER_PORT}/ticketmaster'
+POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DATA_API_SERVER_POSTGRES_HOST}:${POSTGRES_PORT}'
+CLICKHOUSE_URL='clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${DATA_API_SERVER_CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}'
+
+ATTACHMENT_BUCKET_NAME='$ATTACHMENT_BUCKET_NAME'
+CUSTOMER_REPORTS_BUCKET_NAME='$CUSTOMER_REPORTS_BUCKET_NAME'
+ATTACHMENT_BUCKET_LOCAL='$ATTACHMENT_BUCKET_LOCAL'
+CELERY_BROKER_URL='amqp://guest:guest@${DATA_API_SERVER_RABBITMQ_HOST}'
+CELERY_RESULT_BACKEND='redis://${DATA_API_SERVER_REDIS_HOST}'
+DASHBOARDS_SERVICE_URL='${DATA_API_SERVER_DASHBOARDS_SERVICE_URL}'
+REMEDIATION_SERVICE_BASE_URL='${DATA_API_SERVER_REMEDIATION_SERVICE_URL}'
+EOF
+}
+
+echo "Setting data-api-server env file"
+set_data_api_server_env_file ".env.data-api-server" ${ENGINE_POSTGRES_HOST} ${ENGINE_CLICKHOUSE_HOST} \
+${ENGINE_TICKETMASTER_HOST} ${ENGINE_RABBITMQ_HOST} ${ENGINE_REDIS_HOST} ${ENGINE_DYNAMODB_ENDPOINT} \
+${ENGINE_DASHBOARDS_SERVICE_URL} ${ENGINE_REMEDIATION_SERVICE_URL}
+
+
+echo "Setting local data-api-server env file"
+set_data_api_server_env_file "local/.env.local-data-api-server" ${LOCAL_ENGINE_POSTGRES_HOST} ${LOCAL_ENGINE_CLICKHOUSE_HOST} \
+${LOCAL_ENGINE_TICKETMASTER_HOST} ${LOCAL_ENGINE_RABBITMQ_HOST} ${LOCAL_ENGINE_REDIS_HOST} ${LOCAL_ENGINE_DYNAMODB_ENDPOINT} \
+${LOCAL_ENGINE_DASHBOARDS_SERVICE_URL} ${LOCAL_ENGINE_REMEDIATION_SERVICE_URL}
+
+
+function set_ticketmaster_env_file(){
+  ENV_FILE_NAME=$1
+  TICKETMASTER_POSTGRES_HOST=$2
+  TICKETMASTER_CLICKHOUSE_HOST=$3
+  TICKETMASTER_RABBITMQ_HOST=$4
+  TICKETMASTER_REDIS_HOST=$5
+  TICKETMASTER_DYNAMODB_ENDPOINT=$6
+
+  cat > "${REPO_DIR}/env_setup/${ENV_FILE_NAME}" << EOF
+AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
+AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN'
+APP_URL='${TICKETMASTER_BASE_URL}/ticketmaster'
+
+LRU_CACHE_INTERFACE='$LRU_CACHE_INTERFACE'
+LFU_CACHE_INTERFACE='$LFU_CACHE_INTERFACE'
+TTL_CACHE_INTERFACE='$TTL_CACHE_INTERFACE'
+LOCK_FACTORY_LOCAL='$LOCK_FACTORY_LOCAL'
+
+BROKER_USERNAME='guest'
+BROKER_PASSWORD='guest'
+BROKER_URL='amqp://${TICKETMASTER_RABBITMQ_HOST}:5672'
+RESULT_BACKEND_PORT='6379'
+SEEM_STAGE='dev'
+RESULT_BACKEND_ENDPOINT='$TICKETMASTER_REDIS_HOST'
+
+USER_POOL_INTERNAL_CLIENT_ID='$INTERNAL_CLIENT_ID'
+USER_POOL_JWK='$USER_POOL_JWK'
+SECRETS_REGION='$AWS_REGION'
+BASE_URL='$TICKETMASTER_BASE_URL'
+POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${TICKETMASTER_POSTGRES_HOST}:${POSTGRES_PORT}'
+CLICKHOUSE_URL='clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${TICKETMASTER_CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}'
+
+WEB_CONCURRENCY='$WEB_CONCURRENCY'
+WORKERS_PER_CORE='$WORKERS_PER_CORE'
+PORT='$TICKETMASTER_PORT'
+
+ATTACHMENT_BUCKET_NAME='$ATTACHMENT_BUCKET_NAME'
+CUSTOMER_REPORTS_BUCKET_NAME='$CUSTOMER_REPORTS_BUCKET_NAME'
+ATTACHMENT_BUCKET_LOCAL='false'
+CELERY_BROKER_URL='amqp://guest:guest@${TICKETMASTER_RABBITMQ_HOST}'
+CELERY_RESULT_BACKEND='redis://${TICKETMASTER_REDIS_HOST}'
+AWS_ENDPOINT_URL_DYNAMODB='$TICKETMASTER_DYNAMODB_ENDPOINT'
+AWS_REGION=eu-central-1
+AWS_DEFAULT_REGION=eu-central-1
+DEFAULT_DATABASE_IDENTIFIER=default
+EOF
+}
+
+echo "Setting ticketmaster env file"
+set_ticketmaster_env_file ".env.ticketmaster" ${TICKETMASTER_POSTGRES_HOST} ${TICKETMASTER_CLICKHOUSE_HOST} \
+${TICKETMASTER_RABBITMQ_HOST} ${TICKETMASTER_REDIS_HOST} ${TICKETMASTER_DYNAMODB_ENDPOINT}
+
+
+echo "Setting local ticketmaster env file"
+set_ticketmaster_env_file "local/.env.local-ticketmaster" "localhost" "localhost" "localhost" "localhost" "http://localhost:8900"
+
+
+
+function set_ticketmaster_worker_env_file(){
+  ENV_FILE_NAME=$1
+  TICKETMASTER_BASE_URL=$2
+  TICKETMASTER_WORKER_POSTGRES_HOST=$3
+  TICKETMASTER_WORKER_CLICKHOUSE_HOST=$4
+  TICKETMASTER_WORKER_RABBITMQ_HOST=$5
+  TICKETMASTER_WORKER_REDIS_HOST=$6
+  TICKETMASTER_WORKER_DYNAMODB_ENDPOINT=$7
+
+  cat > "${REPO_DIR}/env_setup/${ENV_FILE_NAME}" << EOF
+AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
+AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN'
+APP_URL='${TICKETMASTER_BASE_URL}/ticketmaster'
+
+LRU_CACHE_INTERFACE='$LRU_CACHE_INTERFACE'
+LFU_CACHE_INTERFACE='$LFU_CACHE_INTERFACE'
+TTL_CACHE_INTERFACE='$TTL_CACHE_INTERFACE'
+LOCK_FACTORY_LOCAL='$LOCK_FACTORY_LOCAL'
+
+BROKER_USERNAME='guest'
+BROKER_PASSWORD='guest'
+BROKER_URL='amqp://${TICKETMASTER_WORKER_RABBITMQ_HOST}:5672'
+RESULT_BACKEND_PORT='6379'
+SEEM_STAGE='dev'
+RESULT_BACKEND_ENDPOINT='$TICKETMASTER_WORKER_REDIS_HOST'
+
+USER_POOL_INTERNAL_CLIENT_ID='$INTERNAL_CLIENT_ID'
+USER_POOL_JWK='$USER_POOL_JWK'
+SECRETS_REGION='$AWS_REGION'
+TICKETMASTER_URL='$TICKETMASTER_BASE_URL'
+POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${TICKETMASTER_WORKER_POSTGRES_HOST}:${POSTGRES_PORT}'
+CLICKHOUSE_URL='clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${TICKETMASTER_WORKER_CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}'
+AWS_ENDPOINT_URL_DYNAMODB='$TICKETMASTER_WORKER_DYNAMODB_ENDPOINT'
+AWS_REGION=eu-central-1
+AWS_DEFAULT_REGION=eu-central-1
+
+ATTACHMENT_BUCKET_NAME='$ATTACHMENT_BUCKET_NAME'
+CUSTOMER_REPORTS_BUCKET_NAME='$CUSTOMER_REPORTS_BUCKET_NAME'
+ATTACHMENT_BUCKET_LOCAL='false'
+EOF
+}
+
+echo "Setting ticketmaster-worker env file"
+set_ticketmaster_worker_env_file ".env.ticketmaster-worker" ${TICKETMASTER_BASE_URL} \
+${TICKETMASTER_WORKER_POSTGRES_HOST} ${ENGINE_CLICKHOUSE_HOST} ${TICKETMASTER_WORKER_RABBITMQ_HOST} \
+${TICKETMASTER_WORKER_REDIS_HOST} ${TICKETMASTER_WORKER_DYNAMODB_ENDPOINT}
+
+
+echo "Setting local ticketmaster-worker env file"
+set_ticketmaster_worker_env_file "local/.env.local-ticketmaster-worker" ${TICKETMASTER_BASE_URL} "localhost" \
+"localhost" "localhost" "localhost" "http://localhost:8900"
+
+
+echo "Setting docker env file"
+cat > "${REPO_DIR}/env_setup/.env.docker" << EOF
+DATA_API_SERVER_IMAGE='$DATA_API_SERVER_IMAGE'
+DASHBOARDS_SERVICE_IMAGE='$DASHBOARDS_SERVICE_IMAGE'
+REMEDIATION_SERVICE_IMAGE='$REMEDIATION_SERVICE_IMAGE'
+WORKER_IMAGE='$WORKER_IMAGE'
+COLLECTOR_IMAGE='$COLLECTOR_IMAGE'
+CORRELATOR_IMAGE='$CORRELATOR_IMAGE'
+ACTIONS_WORKER_IMAGE='$ACTIONS_WORKER_IMAGE'
+JS_WORKER_IMAGE='$JS_WORKER_IMAGE'
+WEBSOCKET_SERVER_IMAGE='$WEBSOCKET_SERVER_IMAGE'
+DATA_API_SERVER_PORT='$DATA_API_SERVER_PORT'
+
+TICKETMASTER_IMAGE='$TICKETMASTER_IMAGE'
+TICKETMASTER_WORKER_IMAGE='$TICKETMASTER_WORKER_IMAGE'
+TICKETMASTER_PORT='$TICKETMASTER_PORT'
+DASHBOARDS_SERVICE_PORT='$DASHBOARDS_SERVICE_PORT'
+REMEDIATION_SERVICE_PORT='$REMEDIATION_SERVICE_PORT'
+WEBSOCKET_SERVER_PORT='$WEBSOCKET_SERVER_PORT'
+EOF
+
+echo "Setting websocket server env file"
+cat > "${REPO_DIR}/env_setup/.env.websocket-server" << EOF
+RESULT_BACKEND_PORT='6379'
+RESULT_BACKEND_ENDPOINT='$WEBSOCKET_REDIS_HOST'
+
+LRU_CACHE_INTERFACE='$LRU_CACHE_INTERFACE'
+LFU_CACHE_INTERFACE='$LFU_CACHE_INTERFACE'
+TTL_CACHE_INTERFACE='$TTL_CACHE_INTERFACE'
+LOCK_FACTORY_LOCAL='$LOCK_FACTORY_LOCAL'
+
+USER_POOL_INTERNAL_CLIENT_ID='$INTERNAL_CLIENT_ID'
+USER_POOL_JWK='$USER_POOL_JWK'
+SECRETS_REGION='$AWS_REGION'
+USER_POOL_EXTERNAL_CLIENT_ID='$EXTERNAL_CLIENT_ID'
+INTERNAL_CLIENT_SECRETS='$INTERNAL_CLIENT_SECRETS'
+INTERNAL_COGNITO_ENDPOINT='https://${COGNITO_ENDPOINT}/oauth2/token'
+
+
+WEB_CONCURRENCY='$WEB_CONCURRENCY'
+WORKERS_PER_CORE='$WORKERS_PER_CORE'
+PORT='$WEBSOCKET_SERVER_PORT'
+BASE_URL_PREFIX=websocket
+
+EOF
+
+function set_worker_env_file(){
+  ENV_FILE_NAME=$1
+  WORKER_POSTGRES_HOST=$2
+  WORKER_SERVER_CLICKHOUSE_HOST=$3
+  WORKER_SERVER_TICKETMASTER_HOST=$4
+  WORKER_RABBITMQ_HOST=$5
+  WORKER_REDIS_HOST=$6
+  WORKER_DYNAMODB_ENDPOINT=$7
+  WORKER_SERVER_REMEDIATION_SERVICE_URL=$8
+
+  cat > "${REPO_DIR}/env_setup/${ENV_FILE_NAME}" << EOF
+
+CUSTOMER_REPORTS_BUCKET_NAME='seemplicity-development-customer-reports'
+
+LRU_CACHE_INTERFACE='$LRU_CACHE_INTERFACE'
+LFU_CACHE_INTERFACE='$LFU_CACHE_INTERFACE'
+TTL_CACHE_INTERFACE='$TTL_CACHE_INTERFACE'
+LOCK_FACTORY_LOCAL='$LOCK_FACTORY_LOCAL'
+
+BROKER_USERNAME='guest'
+BROKER_PASSWORD='guest'
+RESULTS_QUEUE_URL=''
+COLLECTOR_MAIN_TOPIC='not_relevant'
+SQS_INTERFACE_ID='MOCK'
+SECRETS_REGION='eu-central-1'
+OUTPUT_BUCKET='/tmp/incoming-bucket'
+INCOMING_BUCKET='/tmp/incoming-bucket'
+PROCESSED_BUCKET='/tmp/normalized-bucket'
+UPLOADER_ID='LOCAL'
+DOWNLOADER_ID='LOCAL'
+LOCAL_RUN='true'
+CELERY_REGISTER_TASKS='true'
+POSTGRES_USER='$POSTGRES_USER'
+POSTGRES_PASSWORD='$POSTGRES_PASSWORD'
+BROKER_URL='amqp://${WORKER_RABBITMQ_HOST}:5672'
+RESULT_BACKEND_ENDPOINT='$WORKER_REDIS_HOST'
+RESULT_BACKEND_PORT='6379'
+POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${WORKER_POSTGRES_HOST}:${POSTGRES_PORT}'
+CLICKHOUSE_URL='clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${WORKER_SERVER_CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}'
+WORKER_IMAGE='$WORKER_IMAGE'
+AWS_REGION='eu-central-1'
+AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
+AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN'
+INTERNAL_SECRET_NAME='internal-client-secrets'
+INTERNAL_COGNITO_ENDPOINT='https://${COGNITO_ENDPOINT}/oauth2/token'
+BASE_URL='$TICKETMASTER_BASE_URL'
+API_ADDRESS='http://${WORKER_ENGINE_HOST}:${DATA_API_SERVER_PORT}${INTERNAL_ENDPOINT}'
+ENABLE_CELERY_LOGGING='false'
+INTERNAL_CLIENT_SECRETS='$INTERNAL_CLIENT_SECRETS'
+TICKETMASTER_URL='http://${WORKER_SERVER_TICKETMASTER_HOST}:${TICKETMASTER_PORT}/ticketmaster'
+REMEDIATION_SERVICE_BASE_URL='${WORKER_SERVER_REMEDIATION_SERVICE_URL}'
+SYNC_TASKS_TIMEOUT='$SYNC_TASKS_TIMEOUT'
+APP_URL='http://localhost:$APPLICATION_PORT'
+RAP_BUCKET_NAME='seemplicity-$COGNITO-euc1-1-remote-collector-out'
+RAP_IAM_USER_SECRET_NAME='rap_secret'
+SEEM_STAGE='dev'
+AWS_ENDPOINT_URL_DYNAMODB='$WORKER_DYNAMODB_ENDPOINT'
+AWS_REGION=eu-central-1
+AWS_DEFAULT_REGION=eu-central-1
+EOF
+}
+
+echo "Setting worker env file"
+set_worker_env_file ".env.worker" "postgres" "clickhouse" ${ENGINE_TICKETMASTER_HOST} "rabbitmq" "redis" "http://dynamodb:8000" ${ENGINE_REMEDIATION_SERVICE_URL}
+
+echo "Setting local worker env file"
+set_worker_env_file "local/.env.local-worker" "localhost" "localhost" "localhost" "localhost" "localhost" "http://localhost:8900" ${LOCAL_ENGINE_REMEDIATION_SERVICE_URL}
+
+function set_correlator_service_env_file(){
+  ENV_FILE_NAME=$1
+  WORKER_POSTGRES_HOST=$2
+  WORKER_SERVER_CLICKHOUSE_HOST=$3
+  WORKER_SERVER_TICKETMASTER_HOST=$4
+  WORKER_RABBITMQ_HOST=$5
+  WORKER_REDIS_HOST=$6
+  WORKER_DYNAMODB_ENDPOINT=$7
+
+  cat > "${REPO_DIR}/env_setup/${ENV_FILE_NAME}" << EOF
+
+CUSTOMER_REPORTS_BUCKET_NAME='seemplicity-development-customer-reports'
+
+LRU_CACHE_INTERFACE='$LRU_CACHE_INTERFACE'
+LFU_CACHE_INTERFACE='$LFU_CACHE_INTERFACE'
+TTL_CACHE_INTERFACE='$TTL_CACHE_INTERFACE'
+LOCK_FACTORY_LOCAL='$LOCK_FACTORY_LOCAL'
+
+BROKER_USERNAME='guest'
+BROKER_PASSWORD='guest'
+RESULTS_QUEUE_URL=''
+COLLECTOR_MAIN_TOPIC='not_relevant'
+SQS_INTERFACE_ID='MOCK'
+SECRETS_REGION='eu-central-1'
+OUTPUT_BUCKET='/tmp/incoming-bucket'
+INCOMING_BUCKET='/tmp/incoming-bucket'
+PROCESSED_BUCKET='/tmp/normalized-bucket'
+UPLOADER_ID='LOCAL'
+DOWNLOADER_ID='LOCAL'
+LOCAL_RUN='true'
+CELERY_REGISTER_TASKS='true'
+POSTGRES_USER='$POSTGRES_USER'
+POSTGRES_PASSWORD='$POSTGRES_PASSWORD'
+BROKER_URL='amqp://${WORKER_RABBITMQ_HOST}:5672'
+RESULT_BACKEND_ENDPOINT='$WORKER_REDIS_HOST'
+RESULT_BACKEND_PORT='6379'
+POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${WORKER_POSTGRES_HOST}:${POSTGRES_PORT}'
+CLICKHOUSE_URL='clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${WORKER_SERVER_CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}'
+CORRELATOR_IMAGE='$CORRELATOR_IMAGE'
+AWS_REGION='eu-central-1'
+AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
+AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN'
+INTERNAL_SECRET_NAME='internal-client-secrets'
+INTERNAL_COGNITO_ENDPOINT='https://${COGNITO_ENDPOINT}/oauth2/token'
+BASE_URL='$TICKETMASTER_BASE_URL'
+API_ADDRESS='http://${WORKER_ENGINE_HOST}:${DATA_API_SERVER_PORT}${INTERNAL_ENDPOINT}'
+ENABLE_CELERY_LOGGING='false'
+INTERNAL_CLIENT_SECRETS='$INTERNAL_CLIENT_SECRETS'
+TICKETMASTER_URL='http://${WORKER_SERVER_TICKETMASTER_HOST}:${TICKETMASTER_PORT}/ticketmaster'
+SYNC_TASKS_TIMEOUT='$SYNC_TASKS_TIMEOUT'
+APP_URL='http://localhost:$APPLICATION_PORT'
+RAP_BUCKET_NAME='seemplicity-$COGNITO-euc1-1-remote-collector-out'
+RAP_IAM_USER_SECRET_NAME='rap_secret'
+SEEM_STAGE='dev'
+AWS_ENDPOINT_URL_DYNAMODB='$WORKER_DYNAMODB_ENDPOINT'
+AWS_REGION=eu-central-1
+AWS_DEFAULT_REGION=eu-central-1
+EOF
+}
+
+echo "Setting correlator env file"
+set_correlator_service_env_file ".env.correlator-service" "postgres" "clickhouse" ${ENGINE_TICKETMASTER_HOST} "rabbitmq" "redis" "http://dynamodb:8000"
+
+echo "Setting local correlator env file"
+set_correlator_service_env_file "local/.env.local-correlator-service" "localhost" "localhost" "localhost" "localhost" "localhost" "http://localhost:8900"
+
+
+function set_dashboards_service_env_file(){
+  ENV_FILE_NAME=$1
+  DASHBOARDS_SERVICE_POSTGRES_HOST=$2
+  DASHBOARDS_SERVICE_CLICKHOUSE_HOST=$3
+  DASHBOARDS_SERVICE_REDIS_HOST=$4
+  DASHBOARDS_SERVICE_DYNAMODB_ENDPOINT=$5
+
+  cat > "${REPO_DIR}/env_setup/${ENV_FILE_NAME}" << EOF
+
+RESULT_BACKEND_ENDPOINT='$DASHBOARDS_SERVICE_REDIS_HOST'
+RESULT_BACKEND_PORT='6379'
+POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DASHBOARDS_SERVICE_POSTGRES_HOST}:${POSTGRES_PORT}'
+CLICKHOUSE_URL='clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${DASHBOARDS_SERVICE_CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}'
+AWS_ENDPOINT_URL_DYNAMODB='$DASHBOARDS_SERVICE_DYNAMODB_ENDPOINT'
+DEFAULT_DATABASE_IDENTIFIER=default
+PORT='$DASHBOARDS_SERVICE_PORT'
+METRICS_TYPE='mock'
+AWS_REGION='eu-central-1'
+AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
+AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN'
+AWS_DEFAULT_REGION=eu-central-1
+EOF
+}
+
+echo "Setting dashboards service env file"
+set_dashboards_service_env_file ".env.dashboards-service" "postgres" "clickhouse" "redis" "http://dynamodb:8000"
+
+echo "Setting local dashboards service env file"
+set_dashboards_service_env_file "local/.env.local-dashboards-service" "localhost" "localhost" "localhost" "http://localhost:8900"
+
+function set_remediation_service_env_file(){
+  ENV_FILE_NAME=$1
+  REMEDIATION_SERVICE_POSTGRES_HOST=$2
+  REMEDIATION_SERVICE_CLICKHOUSE_HOST=$3
+  REMEDIATION_SERVICE_REDIS_HOST=$4
+  REMEDIATION_SERVICE_DYNAMODB_ENDPOINT=$5
+
+  cat > "${REPO_DIR}/env_setup/${ENV_FILE_NAME}" << EOF
+
+RESULT_BACKEND_ENDPOINT='$REMEDIATION_SERVICE_REDIS_HOST'
+RESULT_BACKEND_PORT='6379'
+POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${REMEDIATION_SERVICE_POSTGRES_HOST}:${POSTGRES_PORT}'
+READER_POSTGRES_URL='postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${REMEDIATION_SERVICE_POSTGRES_HOST}:${POSTGRES_PORT}'
+CLICKHOUSE_URL='clickhouse://${CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD}@${REMEDIATION_SERVICE_CLICKHOUSE_HOST}:${CLICKHOUSE_PORT}'
+AWS_ENDPOINT_URL_DYNAMODB='$REMEDIATION_SERVICE_DYNAMODB_ENDPOINT'
+DEFAULT_DATABASE_IDENTIFIER=default
+PORT='$REMEDIATION_SERVICE_PORT'
+METRICS_TYPE='mock'
+WEB_CONCURRENCY='$WEB_CONCURRENCY'
+WORKERS_PER_CORE='$WORKERS_PER_CORE'
+AWS_REGION='eu-central-1'
+AWS_ACCESS_KEY_ID='$AWS_ACCESS_KEY_ID'
+AWS_SECRET_ACCESS_KEY='$AWS_SECRET_ACCESS_KEY'
+AWS_SESSION_TOKEN='$AWS_SESSION_TOKEN'
+AWS_DEFAULT_REGION=eu-central-1
+EOF
+}
+
+echo "Setting remediation service env file"
+set_remediation_service_env_file ".env.remediation-service" "postgres" "clickhouse" "redis" "http://dynamodb:8000"
+
+echo "Setting local remediation service env file"
+set_remediation_service_env_file "local/.env.local-remediation-service" "localhost" "localhost" "localhost" "http://localhost:8900"

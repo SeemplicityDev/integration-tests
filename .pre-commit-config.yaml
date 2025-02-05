@@ -1,0 +1,28 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        exclude_types: [json, svg]
+      - id: trailing-whitespace
+        exclude_types: [svg]
+        name: trim trailing whitespace
+        description: trims trailing whitespace.
+        entry: trailing-whitespace-fixer
+        args: [--markdown-linebreak-ext=md]
+        language: python
+        types: [text]
+        stages: [pre-commit, pre-push, manual]
+      - id: check-toml
+        name: check toml
+        description: checks toml files for parseable syntax.
+        entry: check-toml
+        language: python
+        types: [toml]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.4
+    hooks:
+      - id: ruff
+        args: [.]  # Lint the current directory instead of using 'check'

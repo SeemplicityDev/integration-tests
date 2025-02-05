@@ -1,0 +1,176 @@
+version: '3'
+
+services:
+  data-api-server:
+    image: "${DATA_API_SERVER_IMAGE}"
+    container_name: 'data-api-server'
+    command: 'gunicorn -c python:http_common.gunicorn_conf "data_api_server.app:gunicorn_run()"'
+    ports:
+      - "${DATA_API_SERVER_PORT}:${DATA_API_SERVER_PORT}"
+    env_file:
+      - .env.data-api-server
+    volumes:
+      - /tmp/engine-dbs-shared-volume:/tmp/engine-dbs-shared-volume:rw
+
+  postgres:
+    image: postgres:15.5
+    container_name: 'postgres'
+    command: postgres -c 'max-connections=400'
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env.postgres
+    volumes:
+      - /tmp/engine-dbs-shared-volume:/tmp/engine-dbs-shared-volume:rw
+
+  dynamodb:
+    image: "amazon/dynamodb-local:2.3.0"
+    container_name: 'dynamodb'
+    ports:
+      - "8900:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb"
+
+  ticketmaster:
+    image: "${TICKETMASTER_IMAGE}"
+    container_name: 'ticketmaster'
+    ports:
+      - "${TICKETMASTER_PORT}:${TICKETMASTER_PORT}"
+    env_file:
+      - .env.ticketmaster
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
+    env_file:
+      - .env.worker
+    ports:
+      - 5672:5672
+      - 15672:15672
+
+  ticketmaster-worker:
+    image: "${TICKETMASTER_WORKER_IMAGE}"
+    volumes:
+      - $HOME/.aws:/root/.aws:ro
+    container_name: ticketmaster-worker
+    env_file:
+      - .env.ticketmaster-worker
+    environment:
+      QUEUES: ticketmaster_high_priority,ticketmaster_low_priority,ticketmaster_tasks
+    links:
+      - rabbitmq:rabbitmq
+      - redis:redis
+      - postgres:postgres
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+
+  redis:
+    image: redis:6.2.5
+    container_name: redis
+    env_file:
+      - .env.worker
+    ports:
+      - 6379:6379
+  worker:
+    image: "${WORKER_IMAGE}"
+    command:
+      [
+        "celery",
+        "--app",
+        "worker_service.main",
+        "worker",
+        "--loglevel=INFO",
+        "-c",
+        "3",
+        "-Q",
+        "high_priority,events_handler,remediation_short_tasks,remediation_high_priority"
+      ]
+    volumes:
+      - $HOME/.aws:/root/.aws:ro
+    container_name: worker
+    env_file:
+      - .env.worker
+    links:
+      - rabbitmq:rabbitmq
+      - redis:redis
+    depends_on:
+      - rabbitmq
+      - redis
+  actions-worker:
+    image: "${ACTIONS_WORKER_IMAGE}"
+    volumes:
+      - $HOME/.aws:/root/.aws:ro
+    container_name: actions-worker
+    env_file:
+      - .env.worker
+    environment:
+      QUEUES: action_launcher
+    links:
+      - rabbitmq:rabbitmq
+      - redis:redis
+      - postgres:postgres
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+
+  collector:
+    image: "${COLLECTOR_IMAGE}"
+    command:
+      [
+        "celery",
+        "--app",
+        "collection_service.main",
+        "worker",
+        "--loglevel=INFO",
+        "-c",
+        "1",
+        "-Q",
+        "collectors_high_priority"
+      ]
+    volumes:
+      - $HOME/.aws:/root/.aws:ro
+    container_name: collector
+    env_file:
+      - .env.worker
+
+  js-worker:
+    image: "${JS_WORKER_IMAGE}"
+    command:
+      [
+        "celery",
+        "--app",
+        "js_worker.main",
+        "worker",
+        "--loglevel=INFO",
+        "-c",
+        "1",
+        "-Q",
+        "js_high_priority"
+      ]
+    container_name: js-worker
+    env_file:
+      - .env.worker
+
+  remediation-service:
+    image: "${REMEDIATION_SERVICE_IMAGE}"
+    container_name: remediation-service
+    env_file:
+      - .env.remediation-service
+    ports:
+      - "${REMEDIATION_SERVICE_PORT}:${REMEDIATION_SERVICE_PORT}"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.3-alpine
+    container_name: clickhouse
+    environment:
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=Password1!
+    ports:
+      - "8123:8123"
+      - "8443:8443"
+      - "9000:9000"
+      - "9009:9009"
+    volumes:
+      - /tmp/engine-dbs-shared-volume:/var/lib/clickhouse/user_files:rw

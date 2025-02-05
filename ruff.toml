@@ -1,0 +1,13 @@
+line-length = 140
+show-fixes = true
+target-version = "py311"
+
+[lint]
+fixable = ["ALL"]
+ignore = ["E721", "E722", "E731"]
+
+[lint.per-file-ignores]
+# Ignore `E402` (module import errors) in `__init__.py` and selected directories
+# Ignore `F811` (redefinition of unused variables) in test files for pytest fixtures
+"**/{tests,docs,tools}/*" = ["E402", "F811"]
+"__init__.py" = ["E402"]

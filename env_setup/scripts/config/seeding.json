@@ -1,0 +1,621 @@
+{
+  "datasources": [
+    {
+      "friendly_name": "Manual",
+      "datasource_ids": ["314159"],
+      "datasource_type": "MAN",
+      "actions": [
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity Snyk project",
+      "datasource_ids": ["343434"],
+      "datasource_type": "SNK",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity WIZ project",
+      "datasource_ids": ["7655454"],
+      "datasource_type": "WIZ",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity Axonius project",
+      "datasource_ids": ["808080"],
+      "datasource_type": "AXN",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity Microsoft Defender for Cloud project",
+      "datasource_ids": ["543876"],
+      "datasource_type": "AZR",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity GCP project",
+      "datasource_ids": ["199490750663"],
+      "datasource_type": "GCP",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity GitHub project",
+      "datasource_ids": ["765432"],
+      "datasource_type": "GHB",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity Orca project",
+      "datasource_ids": ["300987"],
+      "datasource_type": "ORC",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity AWS project",
+      "datasource_ids": ["768912301100"],
+      "datasource_type": "AWS",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity AWS project",
+      "datasource_ids": ["097736663124"],
+      "datasource_type": "AWS",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity AWS project",
+      "datasource_ids": ["870034771661"],
+      "datasource_type": "AWS",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity AWS project",
+      "datasource_ids": ["738899102278"],
+      "datasource_type": "AWS",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity AWS project",
+      "datasource_ids": ["539998711101"],
+      "datasource_type": "AWS",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity AWS project",
+      "datasource_ids": ["312366679056"],
+      "datasource_type": "AWS",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity AWS project",
+      "datasource_ids": ["246777801345"],
+      "datasource_type": "AWS",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity GCP",
+      "datasource_ids": ["299490750663"],
+      "datasource_type": "GCP",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity CSV project",
+      "datasource_ids": ["289942628185"],
+      "datasource_type": "CSV",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "CSV",
+          "action_definition_id": 16
+        },
+        {
+          "name": "aggregate_findings_manager",
+          "action_definition_id": 2,
+          "subject_id": null
+        },
+        {
+          "name": "findings_view_update",
+          "action_definition_id": 5,
+          "subject_id": null
+        },
+        {
+          "name": "check_tickets",
+          "action_definition_id": 7,
+          "subject_id": null
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity MEND project",
+      "datasource_ids": ["778546984558"],
+      "datasource_type": "MEND",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    },
+    {
+      "friendly_name": "Seemplicity Tenable.io",
+      "datasource_ids": ["555555555"],
+      "datasource_type": "TEN",
+      "secret_path": "",
+      "actions": [
+        {
+          "name": "collector",
+          "action_definition_id": 19,
+          "enabled": false
+        },
+        {
+          "name": "periodic_lifecycle_update",
+          "action_definition_id": 1,
+          "enabled": false
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "age": 330,
+      "created_time": "2021-05-25T10:57:12.138734",
+      "datasource_id": 13,
+      "main_resource_id": 5,
+      "score": 10,
+      "severity": 3,
+      "title": "test_endpoint_fields"
+    },
+    {
+      "age": 117,
+      "created_time": "2021-04-22T10:57:12.139002",
+      "datasource_id": 2,
+      "main_resource_id": 5,
+      "score": 9,
+      "severity": 3,
+      "title": "test_open_manual_ticket"
+    },
+    {
+      "age": 277,
+      "created_time": "2020-11-13T10:57:12.139010",
+      "datasource_id": 5,
+      "main_resource_id": 7,
+      "score": 6,
+      "severity": 1,
+      "title": "remediation_queue_omg"
+    },
+    {
+      "age": 160,
+      "created_time": "2021-03-10T10:57:12.139039",
+      "datasource_id": 6,
+      "main_resource_id": 7,
+      "score": 9,
+      "severity": 3,
+      "title": "remediation_queue_omg"
+    },
+    {
+      "age": 40,
+      "created_time": "2021-07-08T10:57:12.139045",
+      "datasource_id": 5,
+      "main_resource_id": 7,
+      "score": 10,
+      "severity": 3,
+      "title": "remediation_queue_omg"
+    },
+    {
+      "age": 334,
+      "created_time": "2020-09-17T10:57:12.139051",
+      "datasource_id": 4,
+      "main_resource_id": 7,
+      "score": 3,
+      "severity": 0,
+      "title": "remediation_queue_omg"
+    },
+    {
+      "age": 85,
+      "created_time": "2021-05-24T10:57:12.139058",
+      "datasource_id": 16,
+      "main_resource_id": 7,
+      "score": 10,
+      "severity": 3,
+      "title": "remediation_queue_omg"
+    },
+    {
+      "age": 305,
+      "created_time": "2020-10-16T10:57:12.139064",
+      "datasource_id": 13,
+      "main_resource_id": 7,
+      "score": 7,
+      "severity": 2,
+      "title": "remediation_queue_omg"
+    },
+    {
+      "age": 162,
+      "created_time": "2021-03-08T10:57:12.139097",
+      "datasource_id": 3,
+      "main_resource_id": 7,
+      "score": 0,
+      "severity": 0,
+      "title": "remediation_queue_omg"
+    }
+  ],
+  "resources": {
+    "cloud_provider": {
+      "resource_names": [
+        "aws",
+        "github",
+        "manual",
+        "external",
+        "other"
+      ]
+    },
+    "cloud_account": {
+      "parent": "cloud_provider",
+      "resource_names": [
+        "remediation_queue_omg",
+        "bla"
+      ],
+      "count": 5
+    }
+  },
+  "ticket_providers": [
+    {
+      "provider_type": "JIRA",
+      "known_identifier": "testing-env.atlassian.net",
+      "external_identifier": "87d53fe9-5730-397f-9a57-48f5285a26b4",
+      "oauth_client_id": "eyJob3N0S2V5IjoiODdkNTNmZTktNTczMC0zOTdmLTlhNTctNDhmNTI4NWEyNmI0IiwiYWRkb25LZXkiOiJzZWVtcGxpY2l0eS1hbHBoYSJ9"
+    },
+    {
+      "provider_type": "SLACK",
+      "known_identifier": "seemplicity.slack.com"
+    },
+    {
+      "provider_type": "SERVICENOW",
+      "known_identifier": "ven05283.service-now.com",
+      "external_identifier": "59d6025706a2911024dab79ed5e377f6"
+    },
+    {
+      "provider_type": "EMAIL",
+      "known_identifier": "notifications@seemplicity.io"
+    }
+  ],
+  "groups": [
+    {
+      "name": "TestGroup#1"
+    },
+    {
+      "name": "TestGroup#2",
+      "parent_name": "TestGroup#1"
+    }
+  ],
+  "scopes": [
+    {
+      "values": {
+        "name": "remediation_queue_omg_scope",
+        "filter_data": {
+          "value": ["remediation_queue_omg"],
+          "field": "resource_name",
+          "condition": "in"
+        },
+        "filter_type": "SCOPE",
+        "editable": true,
+        "created_by": "seemplicity"
+      },
+      "parent_name": "TestGroup#1"
+    },
+    {
+      "values": {
+        "name": "github_scope",
+        "filter_data": {
+          "value": ["github"],
+          "field": "cloud_provider",
+          "condition": "in"
+        },
+        "filter_type": "SCOPE",
+        "editable": true,
+        "created_by": "seemplicity"
+      },
+      "parent_name": "TestGroup#1"
+    },
+    {
+      "values": {
+        "name": "cloud_account",
+        "filter_data": {
+          "value": ["cloud_account"],
+          "field": "resource_type",
+          "condition": "in"
+        },
+        "filter_type": "SCOPE",
+        "editable": true,
+        "created_by": "seemplicity"
+      },
+      "parent_name": "TestGroup#2"
+    }
+  ],
+  "filters": [
+    {
+      "values": {
+        "name": "remediation_queue_omg_filter",
+        "filter_data": {
+          "operator": "and",
+          "operands": [
+            {
+              "field": "actual_status",
+              "condition": "",
+              "value": {
+                "field": "category",
+                "condition": "in",
+                "value": ["OPEN"]
+              }
+            },
+            {
+              "value": ["remediation_queue_omg"],
+              "field": "title",
+              "condition": "ilikelist"
+            }
+          ]
+        },
+        "filter_type": "FILTER",
+        "editable": true,
+        "created_by": "seemplicity"
+      }
+    },
+    {
+      "values": {
+        "name": "open_findings",
+        "filter_data": {
+          "operator": "and",
+          "operands": [
+            {
+              "field": "actual_status",
+              "condition": "",
+              "value": {
+                "field": "category",
+                "condition": "in",
+                "value": ["OPEN"]
+              }
+            }
+          ]
+        },
+        "filter_type": "FILTER",
+        "editable": true,
+        "created_by": "seemplicity"
+      }
+    },
+    {
+      "values": {
+        "name": "No Ticket",
+        "filter_data": {
+          "operator": "and",
+          "operands": [
+            {
+              "field": "actual_status",
+              "condition": "",
+              "value": {
+                "field": "category",
+                "condition": "in",
+                "value": ["OPEN"]
+              }
+            },
+            {
+              "value": [
+                "BACKLOG",
+                "SCHEDULED",
+                "IN_PROGRESS",
+                "DONE",
+                "DELETED",
+                "REJECTED"
+              ],
+              "field": "ticket_status",
+              "condition": "not_in"
+            }
+          ]
+        },
+        "filter_type": "FILTER",
+        "editable": true,
+        "created_by": "seemplicity"
+      }
+    }
+  ],
+  "users": [
+    {
+      "first_name": "Taylor",
+      "last_name": "Swift",
+      "email": "cypress@seemplicity.io",
+      "role": "admin"
+    }
+  ],
+  "apply_steps": [
+    "create_datasources",
+    "create_resources",
+    "connect_resources",
+    "create_findings",
+    "create_ticket_providers",
+    "create_groups",
+    "create_scopes",
+    "create_filters",
+    "create_users",
+    "calculate_all_scopes"
+  ]
+}
