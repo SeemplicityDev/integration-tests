@@ -13,7 +13,7 @@ from tests.remediation.fixtures import (
     remediation_queue,  # NOQA F401
     ticket_provider,  # NOQA F401
     delete_tickets,  # NOQA F401
-finding_without_ticket,  # NOQA F401
+    finding_without_ticket,  # NOQA F401
 )
 
 
