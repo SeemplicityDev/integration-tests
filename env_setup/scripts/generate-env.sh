@@ -67,7 +67,7 @@ while [[ $# -gt 0 ]]; do
       PULL_WEBSOCKET=false
       shift
       ;;
-    -lw|--local-worker)
+    -lw|--local-worker-service)
       WORKER_IMAGE="$1"
       PULL_WORKER=false
       shift
@@ -129,7 +129,7 @@ Options:
   -lt, --local-ticketmaster TEXT    Local ticketmaster image name/id        [default: docker profile ECR image]
   -ltw, --local-ticketmaster-worker TEXT    Local ticketmaster worker image name/id        [default: docker profile ECR image]
   -lws, --local-websocket TEXT      Local websocket image name/id           [default: docker profile ECR image]
-  -lw, --local-worker TEXT          Local worker image name/id              [default: docker profile ECR image]
+  -lw, --local-worker-service TEXT          Local worker image name/id              [default: docker profile ECR image]
   --create-jira-project             Create new jira project(must be on dev) [default: false]
   --jira-project-name TEXT          Name of an existing project             [default: CypressJiraProject]
   --no-compose-data-api-server      Don't docker compose data-api-server    [default: false]
