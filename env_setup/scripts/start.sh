@@ -2,26 +2,6 @@
 
 set -euo pipefail
 
-if ! command -v node &> /dev/null; then
-  echo "ERROR: Node.js is not installed or not found in PATH."
-  exit 1
-fi
-
-NODE_VERSION=$(node -v | grep -oE '[0-9]+' | head -n1)
-
-if [[ -z "$NODE_VERSION" ]]; then
-  echo "ERROR: Unable to detect Node.js version. Please ensure Node.js is installed."
-  exit 1
-fi
-
-echo "Detected Node.js version: $NODE_VERSION"
-
-if [ "$NODE_VERSION" -ne 20 ]; then
-  echo "ERROR: Node.js version 20 is required. Please upgrade your Node.js version to 20 and try again."
-  exit 1
-fi
-
-
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 REPO_DIR="$( realpath -- "${SCRIPT_DIR}/../.." )"
 
