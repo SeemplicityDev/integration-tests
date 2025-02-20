@@ -72,6 +72,11 @@ while [[ $# -gt 0 ]]; do
       PULL_WORKER=false
       shift
       ;;
+    -las|--local-actions-service)
+      ACTIONS_WORKER_IMAGE="$1"
+      PULL_ACTIONS_SERVICE=false
+      shift
+      ;;
     --no-compose-data-api-server)
       COMPOSE_ENGINE=false
       # not setting PULL_ENGINE=false as we need it for bootstrapping
@@ -130,6 +135,7 @@ Options:
   -ltw, --local-ticketmaster-worker TEXT    Local ticketmaster worker image name/id        [default: docker profile ECR image]
   -lws, --local-websocket TEXT      Local websocket image name/id           [default: docker profile ECR image]
   -lw, --local-worker-service TEXT          Local worker image name/id              [default: docker profile ECR image]
+  -las, --local-actions-service TEXT          Local actions-service image name/id              [default: docker profile ECR image]
   --create-jira-project             Create new jira project(must be on dev) [default: false]
   --jira-project-name TEXT          Name of an existing project             [default: CypressJiraProject]
   --no-compose-data-api-server      Don't docker compose data-api-server    [default: false]
@@ -182,6 +188,9 @@ fi
 if [ -z "${WORKER_IMAGE+x}" ]; then
   WORKER_IMAGE="${ECR_URL}/worker:latest"
 fi
+if [ -z "${ACTIONS_WORKER_IMAGE+x}" ]; then
+  ACTIONS_WORKER_IMAGE="${ECR_URL}/actions-service:latest"
+fi
 if [ -z "${WEBSOCKET_SERVER_IMAGE+x}" ]; then
   WEBSOCKET_SERVER_IMAGE="${ECR_URL}/websocket-server:latest"
 fi
@@ -202,7 +211,6 @@ LOCAL_ENGINE_REDIS_HOST='localhost'
 LOCAL_WORKER_ENGINE_HOST='host.docker.internal'
 
 JS_WORKER_IMAGE="${ECR_URL}/js-worker:latest"
-ACTIONS_WORKER_IMAGE="${ECR_URL}/actions-service:latest"
 
 POSTGRES_USER='postgres'
 POSTGRES_PASSWORD='Password1!'
@@ -370,6 +378,9 @@ fi
 if [ -z ${PULL_WORKER+x} ]; then
   PULL_WORKER=true
 fi
+if [ -z ${PULL_ACTIONS_SERVICE+x} ]; then
+  PULL_ACTIONS_SERVICE=true
+fi
 if [ -z ${PULL_WEBSOCKET+x} ]; then
   PULL_WEBSOCKET=true
 fi
@@ -486,6 +497,7 @@ PULL_DASHBOARDS_SERVICE=$PULL_DASHBOARDS_SERVICE
 PULL_REMEDIATION_SERVICE=$PULL_REMEDIATION_SERVICE
 PULL_WEBSOCKET=$PULL_WEBSOCKET
 PULL_WORKER=$PULL_WORKER
+PULL_ACTIONS_SERVICE=$PULL_ACTIONS_SERVICE
 SERVE_BUILD=$SERVE_BUILD
 
 COMPOSE_ENGINE=$COMPOSE_ENGINE

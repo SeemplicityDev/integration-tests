@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 REPO_DIR="$( realpath -- "${SCRIPT_DIR}/../.." )"
 
-echo 'Creating shared colume directory: /tmp/engine-dbs-shared-volume'
+echo 'Creating shared column directory: /tmp/engine-dbs-shared-volume'
 mkdir -p /tmp/engine-dbs-shared-volume
 chmod 777 /tmp/engine-dbs-shared-volume
 
@@ -40,7 +40,10 @@ if [ $PULL_REMEDIATION_SERVICE = true ]; then
   pulled_images+=(remediation-service)
 fi
 if [ $PULL_WORKER = true ]; then
-  pulled_images+=(worker js-worker actions-worker)
+  pulled_images+=(worker js-worker)
+fi
+if [ $PULL_ACTIONS_SERVICE = true ]; then
+  pulled_images+=(actions-worker)
 fi
 if [ $PULL_COLLECTOR = true ]; then
   pulled_images+=(collector)
