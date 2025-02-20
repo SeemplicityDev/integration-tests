@@ -12,11 +12,6 @@ from api_client.token_manager import TokenManager
 def get_token_manager(config: Config) -> TokenManager:
     session = boto3.session.Session()
     client = session.client(service_name="secretsmanager", region_name=config.aws_region)
-    response = client.list_secrets()
-    secrets = response.get("SecretList", [])
-    for secret in secrets:
-        print(f"Name: {secret['Name']}, ARN: {secret['ARN']}")
-
     cred_secret = client.get_secret_value(SecretId=config.cred_secret_name)
     secrets = json.loads(cred_secret.get("SecretString"))
     return TokenManager(
