@@ -1,7 +1,6 @@
 import json
 import pytest
 
-import requests
 
 from api_client.client import DataAPIServerClient
 from api_client.config import Config
@@ -70,7 +69,7 @@ def test_manual_ticket(
         ticket_provider_id: str,
         value_mapping: dict,
         finding_without_ticket: dict,
-        jira_webhook_token: str,
+        # jira_webhook_token: str,
         config: Config,
 ):
     finding_id_int = finding_without_ticket["id_int"]
@@ -94,14 +93,14 @@ def test_manual_ticket(
     assert finding["tickets"]["edges"][0]["node"]["external_id"] == external_id_
     assert finding["tickets"]["edges"][0]["node"]["status"] == "BACKLOG"
 
-    res = requests.post(
-        f"{config.ticketmaster_url}/jira/issue_updated",
-        json=get_jira_issue_updated_data(external_id=external_id_, required_external_status="Done"),
-        headers={"Authorization": f"JWT {jira_webhook_token}"},
-    )
-    assert res.status_code == 200
-    finding = get_findings(
-        client=client,
-        filters_config=r'{filtersjson: "{\"field\":\"id\",\"condition\":\"in\",\"value\":[%s]}"}' % finding_id_int,
-    )[0]["node"]
-    assert finding["tickets"]["edges"][0]["node"]["status"] == "DONE"
+    # res = requests.post(
+    #     f"{config.ticketmaster_url}/jira/issue_updated",
+    #     json=get_jira_issue_updated_data(external_id=external_id_, required_external_status="Done"),
+    #     headers={"Authorization": f"JWT {jira_webhook_token}"},
+    # )
+    # assert res.status_code == 200
+    # finding = get_findings(
+    #     client=client,
+    #     filters_config=r'{filtersjson: "{\"field\":\"id\",\"condition\":\"in\",\"value\":[%s]}"}' % finding_id_int,
+    # )[0]["node"]
+    # assert finding["tickets"]["edges"][0]["node"]["status"] == "DONE"

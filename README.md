@@ -8,6 +8,7 @@ To run the tests, execute the following command:
 
 ```bash
 uv sync -U
+./env_setup/scripts/generate-env.sh
 ./env_setup/scripts/start.sh
 export PYTHONPATH=~/PycharmProjects/intergation_tests
 uv run pytest
