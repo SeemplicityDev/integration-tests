@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Optional
 
 import boto3
@@ -11,10 +12,14 @@ from api_client.token_manager import TokenManager
 
 def get_token_manager(config: Config) -> TokenManager:
     session = boto3.session.Session()
-    client = session.client(service_name="secretsmanager", region_name=config.aws_region)
+    client = session.client(service_name="secretsmanager", region_name=config.aws_region, )
+    print("getting token manager")
+    print(config.cred_secret_name)
+    print(os.getenv("AWS_PROFILE"))
+    print(os.getenv("AWS_REGION"))
 
-    get_secret_value_response = client.get_secret_value(SecretId=config.cred_secret_name)
-    secrets = json.loads(get_secret_value_response.get("SecretString"))
+    cred_secret = client.get_secret_value(SecretId=config.cred_secret_name)
+    secrets = json.loads(cred_secret.get("SecretString"))
     return TokenManager(
         user_pool_id=secrets["pool_id"],
         client_id=secrets["client_id"],
