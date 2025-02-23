@@ -6,14 +6,6 @@ from api_client.client import DataAPIServerClient
 from utils.ticketing.ticketing_utils import (
     get_endpoint_fields,
 )
-from tests.remediation.fixtures import (
-    ticket_provider_id,  # NOQA F401
-    ticket_provider,  # NOQA F401
-    finding_without_ticket,  # NOQA F401
-    field_mapping_id,  # NOQA F401
-    remediation_queue,  # NOQA F401
-)
-
 
 @pytest.mark.parametrize(
     argnames=["pre_selected_keys", "expected_fields", "ticket_provider"],

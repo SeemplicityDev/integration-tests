@@ -6,14 +6,6 @@ from api_client.client import DataAPIServerClient
 from api_client.config import Config
 from utils.findings.findings_utils import get_findings
 from utils.ticketing.ticketing_queries import MUTATION_OPEN_TICKET
-from tests.remediation.fixtures import (
-    ticket_provider_id,  # NOQA F401
-    field_mapping_id,  # NOQA F401
-    remediation_queue,  # NOQA F401
-    ticket_provider,  # NOQA F401
-    delete_tickets,  # NOQA F401
-    finding_without_ticket,  # NOQA F401
-)
 
 
 def get_jira_issue_updated_data(external_id: str, required_external_status: str) -> dict:

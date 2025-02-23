@@ -4,13 +4,6 @@ import pytest
 
 from api_client.client import DataAPIServerClient
 from utils.ticketing.ticketing_utils import get_query_field_option, get_endpoint_keys
-from tests.remediation.fixtures import (
-    ticket_provider_id,  # NOQA F401
-    field_mapping_id,  # NOQA F401
-    remediation_queue,  # NOQA F401
-    ticket_provider,  # NOQA F401
-)
-
 
 @pytest.mark.parametrize(
     argnames=["pre_selected_keys", "fields_to_query", "ticket_provider"],
