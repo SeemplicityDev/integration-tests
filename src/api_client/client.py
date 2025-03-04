@@ -1,19 +1,15 @@
-import json
 from typing import Optional
 
-import boto3
 import requests
 from jinja2 import Template
 
 from api_client.config import Config
 from api_client.token_manager import TokenManager
+from utils.aws_utils import get_secret
 
 
 def get_token_manager(config: Config) -> TokenManager:
-    session = boto3.session.Session()
-    client = session.client(service_name="secretsmanager", region_name=config.aws_region)
-    cred_secret = client.get_secret_value(SecretId=config.cred_secret_name)
-    secrets = json.loads(cred_secret.get("SecretString"))
+    secrets = get_secret(aws_region=config.aws_region, secret_name=config.cred_secret_name)
     return TokenManager(
         user_pool_id=secrets["pool_id"],
         client_id=secrets["client_id"],

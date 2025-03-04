@@ -10,6 +10,7 @@ query {
         known_identifier
         external_identifier
         oauth_client_id
+        type
       }
     }
 }

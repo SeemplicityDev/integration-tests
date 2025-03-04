@@ -1,10 +1,12 @@
 import json
-import pytest
+from typing import Callable
 
+import pytest
 
 from api_client.client import DataAPIServerClient
 from api_client.config import Config
 from utils.findings.findings_utils import get_findings
+from utils.ticketing.clients.clients import BaseClient
 from utils.ticketing.ticketing_queries import MUTATION_OPEN_TICKET
 
 
@@ -38,7 +40,7 @@ def get_jira_issue_updated_data(external_id: str, required_external_status: str)
 
 
 @pytest.mark.parametrize(
-    argnames=["value_mapping", "ticket_provider"],
+    argnames=["value_mapping", "ticket_provider", "finding"],
     argvalues=[
         pytest.param(
             {
@@ -50,21 +52,24 @@ def get_jira_issue_updated_data(external_id: str, required_external_status: str)
                 "description": "test_description",
             },
             "JIRA",
+            "test_open_manual_ticket",
             id="jira",
         ),
     ],
-    indirect=["ticket_provider"]
+    indirect=["ticket_provider", "finding"],
 )
-@pytest.mark.usefixtures("delete_tickets")
+@pytest.mark.usefixtures("delete_ticket")
 def test_manual_ticket(
         client: DataAPIServerClient,
         ticket_provider_id: str,
         value_mapping: dict,
-        finding_without_ticket: dict,
+        finding: dict,
+        ticket_client: BaseClient,
+        ticket_validator: Callable[[dict, dict], None],
         # jira_webhook_token: str,
         config: Config,
 ):
-    finding_id_int = finding_without_ticket["id_int"]
+    finding_id_int = finding["id_int"]
     ticket = client.gql_query(
         jinja_temp=MUTATION_OPEN_TICKET,
         query_name="open_ticket",
@@ -84,6 +89,8 @@ def test_manual_ticket(
     )[0]["node"]
     assert finding["tickets"]["edges"][0]["node"]["external_id"] == external_id_
     assert finding["tickets"]["edges"][0]["node"]["status"] == "BACKLOG"
+    actual_ticket = ticket_client.get_ticket(external_id=external_id_)
+    ticket_validator(actual_ticket, value_mapping)
 
     # res = requests.post(
     #     f"{config.ticketmaster_url}/jira/issue_updated",

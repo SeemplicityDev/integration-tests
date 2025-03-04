@@ -2,7 +2,7 @@ import json
 from functools import lru_cache
 from typing import Optional
 
-from src.api_client.client import DataAPIServerClient
+from api_client.client import DataAPIServerClient
 from utils.ticketing.ticketing_queries import GET_TICKET_MANAGERS_QUERY, GET_ENDPOINT_KEYS_QUERY, \
     GET_QUERY_FIELDS_QUERY, GET_ENDPOINT_FIELDS_QUERY
 

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from src.api_client.client import DataAPIServerClient
+from api_client.client import DataAPIServerClient
 from utils.findings.findings_queries import GET_PLAIN_FINDINGS_QUERY
 
 

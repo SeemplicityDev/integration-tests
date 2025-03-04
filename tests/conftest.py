@@ -72,7 +72,7 @@ def config() -> Config:
 
 @pytest.fixture(scope="session")
 def postgres_session(config: Config) -> Session:
-    engine = create_engine("postgresql://postgres:Password1!@localhost:5432/postgres")
+    engine = create_engine(config.postgres_url)
     engine.execution_options(schema_translate_map={None: config.customer_schema})
     with engine.connect() as conn:
         session_factory = sessionmaker()

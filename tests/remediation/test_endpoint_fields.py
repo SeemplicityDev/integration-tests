@@ -8,7 +8,7 @@ from utils.ticketing.ticketing_utils import (
 )
 
 @pytest.mark.parametrize(
-    argnames=["pre_selected_keys", "expected_fields", "ticket_provider"],
+    argnames=["pre_selected_keys", "expected_fields", "ticket_provider", "finding"],
     argvalues=[
         pytest.param(
             {"project": "BLA", "issuetype": "Task"},
@@ -24,17 +24,18 @@ from utils.ticketing.ticketing_utils import (
                 "summary": (True, False)
             },
             "JIRA",
+            "test_endpoint_fields",
             id="jira_bla_task",
         ),
     ],
-    indirect=["ticket_provider"]
+    indirect=["ticket_provider", "finding"]
 )
 def test_manual_ticket_endpoint_fields(
         pre_selected_keys: dict,
         client: DataAPIServerClient,
         ticket_provider_id: str,
 ticket_provider: dict,
-        finding_without_ticket: dict,
+        finding: dict,
         expected_fields: dict[str, tuple[bool, bool]],
 ):
     endpoint_fields = get_endpoint_fields(
@@ -42,13 +43,13 @@ ticket_provider: dict,
         ticket_provider_id=ticket_provider_id,
         selected_keys=pre_selected_keys,
         filters_config=r'{filtersjson: "{\"operator\":\"and\",\"operands\":[{\"field\":\"id\",\"condition\":\"in\",\"value\":[\"%s\"]}]}"}' %
-                       finding_without_ticket["id_int"],
+                       finding["id_int"],
     )
     rows = endpoint_fields["fields_sections"][0]["rows"]
     fields = {f["field_name"]: (f["required"], bool(f["options"])) for row in rows for f in row["fields"]}
     assert fields == expected_fields
     title_field = next(f for row in rows for f in row["fields"] if f["field_name"] == "summary")
-    assert json.loads(title_field["default_value"])["value"] == f'{finding_without_ticket["title"]} [{finding_without_ticket["resource_name"]}]'
+    assert json.loads(title_field["default_value"])["value"] == f'{finding["title"]} [{finding["resource_name"]}]'
 
 
 @pytest.mark.parametrize(
